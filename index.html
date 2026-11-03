@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blackjack 3D Casino</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- GSAP for smooth animations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Inter & Cinzel -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            user-select: none;
+            background-color: #030712;
+            font-family: 'Inter', sans-serif;
+        }
+        .font-cinzel {
+            font-family: 'Cinzel', serif;
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+        /* Glassmorphism Panel */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+        }
+        .glass-pill {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        /* Luxurious Casino Buttons */
+        .casino-btn {
+            position: relative;
+            overflow: hidden;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .casino-btn::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+            transition: left 0.5s ease;
+        }
+        .casino-btn:hover::before {
+            left: 100%;
+        }
+        .casino-btn:hover:not(:disabled) {
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 12px 25px rgba(0, 0, 0, 0.5);
+        }
+        .casino-btn:active:not(:disabled) {
+            transform: translateY(-1px) scale(0.99);
+        }
+        .casino-btn:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+            filter: grayscale(90%);
+        }
+
+        /* Deluxe 3D Chip Buttons */
+        .chip-btn {
+            transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: inset 0 2px 4px rgba(255,255,255,0.4), inset 0 -3px 4px rgba(0,0,0,0.5), 0 8px 15px rgba(0,0,0,0.5);
+        }
+        .chip-btn:hover {
+            transform: translateY(-8px) rotate(4deg) scale(1.12);
+            box-shadow: inset 0 2px 4px rgba(255,255,255,0.6), inset 0 -3px 4px rgba(0,0,0,0.5), 0 15px 25px rgba(0,0,0,0.6);
+        }
+        .chip-btn:active {
+            transform: translateY(-2px) scale(0.95);
+        }
+
+        /* Banner animations */
+        .result-banner-enter {
+            animation: bannerPop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        @keyframes bannerPop {
+            0% { opacity: 0; transform: translate(-50%, -40%) scale(0.8); }
+            100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+    </style>
+</head>
+<body class="text-slate-100">
+
+    <!-- Canvas Container -->
+    <div id="canvas-container" class="absolute inset-0"></div>
+
+    <!-- UI Overlay -->
+    <div class="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 md:p-6 select-none z-10">
+        
+        <!-- Header HUD -->
+        <div class="flex justify-between items-center w-full max-w-6xl mx-auto pointer-events-auto">
+            <!-- Dealer Score Badge -->
+            <div class="glass-panel px-5 py-2.5 rounded-2xl flex items-center space-x-3 border-l-4 border-amber-500 shadow-xl">
+                <div class="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-400 border border-amber-500/40">
+                    <i class="fa-solid fa-user-tie text-lg"></i>
+                </div>
+                <div>
+                    <div class="text-[10px] uppercase font-bold tracking-widest text-slate-400">Banco</div>
+                    <div id="dealer-score" class="text-2xl font-black text-amber-300 tracking-tight">0</div>
+                </div>
+            </div>
+
+            <!-- Header Title & Mute Toggle -->
+            <div class="flex flex-col items-center">
+                <div class="flex items-center space-x-3">
+                    <h1 class="font-cinzel text-xl md:text-3xl font-black tracking-widest bg-clip-text text-transparent bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-200 drop-shadow-[0_2px_10px_rgba(217,119,6,0.5)]">
+                        BLACKJACK
+                    </h1>
+                    <button id="btn-audio-toggle" onclick="toggleAudio()" class="w-8 h-8 rounded-full glass-pill flex items-center justify-center text-slate-300 hover:text-amber-400 hover:border-amber-400/50 transition-colors">
+                        <i id="audio-icon" class="fa-solid fa-volume-high text-xs"></i>
+                    </button>
+                </div>
+                <span class="hidden sm:inline-block text-[10px] text-amber-400/80 font-bold tracking-widest uppercase mt-0.5">Paga 3 a 2 • Stand a 17</span>
+            </div>
+
+            <!-- Player Balance Badge -->
+            <div class="glass-panel px-5 py-2.5 rounded-2xl flex items-center space-x-3 border-r-4 border-emerald-500 shadow-xl">
+                <!-- Reload / Reset Money Button -->
+                <button onclick="resetBankroll()" title="Ricarica Saldo (€1.000)" class="w-8 h-8 rounded-full glass-pill flex items-center justify-center text-emerald-300 hover:text-emerald-100 hover:bg-emerald-500/30 transition-all">
+                    <i class="fa-solid fa-arrows-rotate text-xs"></i>
+                </button>
+                <div class="text-right">
+                    <div class="text-[10px] uppercase font-bold tracking-widest text-slate-400">Saldo</div>
+                    <div id="bankroll-display" class="text-2xl font-black text-emerald-400 tracking-tight">€1.000</div>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center text-emerald-400 border border-emerald-500/40">
+                    <i class="fa-solid fa-wallet text-lg"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dynamic Game Result Banner Modal -->
+        <div id="result-modal" class="hidden absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none z-30 w-full max-w-md px-4">
+            <div id="result-modal-box" class="glass-panel p-6 md:p-8 rounded-3xl border-2 shadow-[0_0_50px_rgba(0,0,0,0.8)] backdrop-blur-2xl">
+                <div id="result-icon-bg" class="w-16 h-16 mx-auto mb-3 rounded-full flex items-center justify-center text-3xl">
+                    <i id="result-icon" class="fa-solid fa-trophy"></i>
+                </div>
+                <h2 id="result-title" class="font-cinzel text-2xl md:text-4xl font-black tracking-wider uppercase mb-1">
+                    VITTORIA!
+                </h2>
+                <p id="result-subtitle" class="text-sm font-semibold text-slate-300">
+                    Hai vinto €100
+                </p>
+            </div>
+        </div>
+
+        <!-- Floating Player Score Indicator -->
+        <div class="w-full flex justify-center pointer-events-none mb-2">
+            <div id="player-score-container" class="glass-pill px-6 py-1.5 rounded-full flex items-center space-x-2 border border-amber-500/30 transition-all duration-300 opacity-0 shadow-lg">
+                <i class="fa-solid fa-user text-amber-400 text-xs"></i>
+                <span class="text-xs uppercase font-bold tracking-wider text-slate-300">Punteggio Giocatore:</span>
+                <span id="player-score" class="text-lg font-black text-amber-400">0</span>
+            </div>
+        </div>
+
+        <!-- Bottom Console: Betting & Actions -->
+        <div class="w-full max-w-5xl mx-auto pointer-events-auto flex flex-col items-center">
+            
+            <div class="glass-panel w-full p-4 md:p-5 rounded-3xl border border-slate-700/60 shadow-2xl flex flex-col items-center gap-4">
+                
+                <!-- Betting Phase Interface -->
+                <div id="betting-controls" class="flex flex-col md:flex-row items-center justify-between w-full gap-4">
+                    
+                    <!-- Quick Bet Actions -->
+                    <div class="flex items-center space-x-2">
+                        <button onclick="clearBet()" class="casino-btn px-4 py-2.5 rounded-xl glass-pill hover:bg-rose-500/20 text-rose-300 text-xs font-bold uppercase tracking-wider flex items-center space-x-1.5 border border-rose-500/30">
+                            <i class="fa-solid fa-rotate-left"></i>
+                            <span>Azzera</span>
+                        </button>
+                        <button onclick="addMaxBet()" class="casino-btn px-4 py-2.5 rounded-xl glass-pill hover:bg-amber-500/20 text-amber-300 text-xs font-bold uppercase tracking-wider flex items-center space-x-1.5 border border-amber-500/30">
+                            <i class="fa-solid fa-bolt"></i>
+                            <span>All-In</span>
+                        </button>
+                    </div>
+
+                    <!-- Chips Selector Tray -->
+                    <div class="flex items-center justify-center space-x-2 sm:space-x-4">
+                        <button onclick="addBet(5)" class="chip-btn w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-tr from-red-700 via-red-600 to-red-400 border-4 border-dashed border-white/90 font-black text-xs sm:text-sm text-white flex items-center justify-center cursor-pointer">€5</button>
+                        <button onclick="addBet(10)" class="chip-btn w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-tr from-blue-700 via-blue-600 to-blue-400 border-4 border-dashed border-white/90 font-black text-xs sm:text-sm text-white flex items-center justify-center cursor-pointer">€10</button>
+                        <button onclick="addBet(25)" class="chip-btn w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-tr from-emerald-700 via-emerald-600 to-emerald-400 border-4 border-dashed border-white/90 font-black text-xs sm:text-sm text-white flex items-center justify-center cursor-pointer">€25</button>
+                        <button onclick="addBet(50)" class="chip-btn w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-tr from-purple-700 via-purple-600 to-purple-400 border-4 border-dashed border-white/90 font-black text-xs sm:text-sm text-white flex items-center justify-center cursor-pointer">€50</button>
+                        <button onclick="addBet(100)" class="chip-btn w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-tr from-amber-500 via-yellow-400 to-amber-300 border-4 border-dashed border-slate-900 font-black text-xs sm:text-sm text-slate-950 flex items-center justify-center cursor-pointer">€100</button>
+                    </div>
+
+                    <!-- Current Bet & Deal Button -->
+                    <div class="flex items-center space-x-3 w-full md:w-auto justify-end">
+                        <div class="px-5 py-2 rounded-xl bg-slate-950/80 border border-slate-700/80 text-center min-w-[100px]">
+                            <div class="text-[9px] uppercase font-bold text-slate-400 tracking-widest">Puntata</div>
+                            <div id="current-bet-display" class="text-lg font-black text-amber-400">€0</div>
+                        </div>
+                        <button id="btn-deal" onclick="startGame()" disabled class="casino-btn px-8 py-3.5 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 text-slate-950 font-black text-sm rounded-xl uppercase tracking-wider flex items-center space-x-2 border border-emerald-300/40 shadow-lg shadow-emerald-950/40">
+                            <i class="fa-solid fa-play"></i>
+                            <span>Gioca</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Active Game Actions (Hit, Stand, Double) -->
+                <div id="game-controls" class="hidden flex items-center justify-center space-x-3 sm:space-x-5 w-full">
+                    <button id="btn-hit" onclick="playerHit()" class="casino-btn px-6 sm:px-8 py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider flex items-center space-x-2 border border-blue-400/30 shadow-lg shadow-blue-950/40">
+                        <i class="fa-solid fa-plus text-base"></i>
+                        <span>Carta</span>
+                    </button>
+                    <button id="btn-stand" onclick="playerStand()" class="casino-btn px-6 sm:px-8 py-3.5 bg-gradient-to-r from-amber-600 to-red-600 hover:from-amber-500 hover:to-red-500 text-white rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider flex items-center space-x-2 border border-amber-400/30 shadow-lg shadow-red-950/40">
+                        <i class="fa-solid fa-hand text-base"></i>
+                        <span>Stai</span>
+                    </button>
+                    <button id="btn-double" onclick="playerDouble()" class="casino-btn px-6 sm:px-8 py-3.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider flex items-center space-x-2 border border-purple-400/30 shadow-lg shadow-purple-950/40">
+                        <i class="fa-solid fa-angles-up text-base"></i>
+                        <span>Raddoppia</span>
+                    </button>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Audio Synthesizer Logic -->
+    <script>
+        class SoundEffects {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            playCardSlide() {
+                if (this.muted) return;
+                this.init();
+                const bufferSize = this.ctx.sampleRate * 0.15;
+                const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+
+                const noise = this.ctx.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = this.ctx.createBiquadFilter();
+                filter.type = 'bandpass';
+                filter.frequency.setValueAtTime(800, this.ctx.currentTime);
+                filter.Q.setValueAtTime(3, this.ctx.currentTime);
+
+                const gain = this.ctx.createGain();
+                gain.gain.setValueAtTime(0.01, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.3, this.ctx.currentTime + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                noise.start();
+            }
+
+            playChipSound() {
+                if (this.muted) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(2200, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(800, this.ctx.currentTime + 0.08);
+
+                gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.08);
+            }
+
+            playWin() {
+                if (this.muted) return;
+                this.init();
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'triangle';
+                    osc.frequency.value = freq;
+
+                    const startTime = this.ctx.currentTime + idx * 0.1;
+                    gain.gain.setValueAtTime(0, startTime);
+                    gain.gain.linearRampToValueAtTime(0.3, startTime + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.3);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(startTime);
+                    osc.stop(startTime + 0.3);
+                });
+            }
+
+            playLose() {
+                if (this.muted) return;
+                this.init();
+                const notes = [300, 260, 220, 180];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'sawtooth';
+                    osc.frequency.value = freq;
+
+                    const startTime = this.ctx.currentTime + idx * 0.12;
+                    gain.gain.setValueAtTime(0, startTime);
+                    gain.gain.linearRampToValueAtTime(0.2, startTime + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.25);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(startTime);
+                    osc.stop(startTime + 0.25);
+                });
+            }
+
+            playClick() {
+                if (this.muted) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, this.ctx.currentTime);
+                gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.03);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.03);
+            }
+        }
+
+        const soundFX = new SoundEffects();
+
+        function toggleAudio() {
+            soundFX.muted = !soundFX.muted;
+            const icon = document.getElementById('audio-icon');
+            if (soundFX.muted) {
+                icon.className = 'fa-solid fa-volume-xmark text-xs text-rose-400';
+            } else {
+                icon.className = 'fa-solid fa-volume-high text-xs text-amber-400';
+            }
+        }
+    </script>
+
+    <!-- Main Game Logic and Three.js Graphics -->
+    <script>
+        // --- GAME STATE ---
+        let bankroll = 100;
+        let currentBet = 0;
+        let deck = [];
+        let playerHand = [];
+        let dealerHand = [];
+        let gameState = 'BETTING'; // BETTING, PLAYER_TURN, DEALER_TURN, RESOLVED
+
+        // --- THREE.JS GLOBALS ---
+        let scene, camera, renderer;
+        let cardMeshes = [];
+        let chipMeshes = [];
+        const cardBackTexture = createCardBackTexture();
+
+        // Shoe position for card dealing animation
+        const SHOE_POS = new THREE.Vector3(-4.5, 0.6, -2);
+        const DEALER_POS = new THREE.Vector3(0, 0.05, -1.8);
+        const PLAYER_POS = new THREE.Vector3(0, 0.05, 1.2);
+
+        // Card Suits and Ranks
+        const SUITS = ['♠', '♥', '♦', '♣'];
+        const RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+
+        // Card dimensions
+        const CARD_WIDTH = 1.0;
+        const CARD_HEIGHT = 1.45;
+        const CARD_THICKNESS = 0.015;
+
+        // --- INITIALIZATION ---
+        window.onload = function() {
+            init3D();
+            updateUI();
+            animate();
+        };
+
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x070d19);
+            scene.fog = new THREE.FogExp2(0x070d19, 0.06);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 6.5, 5.5);
+            camera.lookAt(0, -0.2, 0);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.1;
+            container.appendChild(renderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+
+            const tableSpotLight = new THREE.SpotLight(0xfff5ea, 2.5);
+            tableSpotLight.position.set(0, 8, 1);
+            tableSpotLight.angle = Math.PI / 3;
+            tableSpotLight.penumbra = 0.5;
+            tableSpotLight.castShadow = true;
+            tableSpotLight.shadow.mapSize.width = 2048;
+            tableSpotLight.shadow.mapSize.height = 2048;
+            tableSpotLight.shadow.camera.near = 1;
+            tableSpotLight.shadow.camera.far = 10;
+            tableSpotLight.shadow.bias = -0.001;
+            scene.add(tableSpotLight);
+
+            const rimLight = new THREE.DirectionalLight(0x3b82f6, 0.8);
+            rimLight.position.set(-5, 5, -5);
+            scene.add(rimLight);
+
+            // Build Environment
+            createTable();
+            createShoe();
+
+            // Window Resize Listener
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        // --- PROCEDURAL TEXTURES & GEOMETRIES ---
+
+        function createFeltTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            // Deep Casino Green Gradient
+            const grad = ctx.createRadialGradient(256, 256, 50, 256, 256, 360);
+            grad.addColorStop(0, '#0d6338');
+            grad.addColorStop(1, '#05311b');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 512, 512);
+
+            // Felt Grain Noise
+            for (let i = 0; i < 40000; i++) {
+                const x = Math.random() * 512;
+                const y = Math.random() * 512;
+                const val = Math.random() * 20;
+                ctx.fillStyle = `rgba(255,255,255,${val / 255 * 0.05})`;
+                ctx.fillRect(x, y, 1, 1);
+            }
+
+            // Yellow Markings / Lines
+            ctx.strokeStyle = '#d97706';
+            ctx.lineWidth = 4;
+            ctx.globalAlpha = 0.35;
+            
+            // Betting Circle Arc
+            ctx.beginPath();
+            ctx.arc(256, 320, 60, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Insurance Line Arc
+            ctx.beginPath();
+            ctx.arc(256, 180, 180, 0.2 * Math.PI, 0.8 * Math.PI);
+            ctx.stroke();
+
+            // Text on felt
+            ctx.font = 'bold 16px sans-serif';
+            ctx.fillStyle = '#fbbf24';
+            ctx.textAlign = 'center';
+            ctx.fillText('BLACKJACK PAYS 3 TO 2', 256, 230);
+            ctx.font = '12px sans-serif';
+            ctx.fillText('Dealer must draw to 16 and stand on all 17s', 256, 250);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            return texture;
+        }
+
+        function createCardBackTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 360;
+            const ctx = canvas.getContext('2d');
+
+            // Dark Red Base
+            ctx.fillStyle = '#881337';
+            ctx.fillRect(0, 0, 256, 360);
+
+            // White Border
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(10, 10, 236, 340);
+            ctx.fillStyle = '#9f1239';
+            ctx.fillRect(16, 16, 224, 328);
+
+            // Pattern
+            ctx.strokeStyle = '#fda4af';
+            ctx.lineWidth = 1;
+            ctx.globalAlpha = 0.25;
+            for (let i = -200; i < 400; i += 12) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i + 200, 360);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(i, 360);
+                ctx.lineTo(i + 200, 0);
+                ctx.stroke();
+            }
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createCardFrontTexture(suit, rank) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 720;
+            const ctx = canvas.getContext('2d');
+
+            // Card Background (Bright Crisp White)
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, 512, 720);
+
+            // Border Line
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(12, 12, 488, 696);
+
+            // Color selection
+            const isRed = suit === '♥' || suit === '♦';
+            const color = isRed ? '#dc2626' : '#0f172a';
+            ctx.fillStyle = color;
+
+            // Top-Left Rank & Suit
+            ctx.font = 'bold 72px Inter, Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillText(rank, 64, 40);
+            ctx.font = '60px Arial';
+            ctx.fillText(suit, 64, 120);
+
+            // Bottom-Right Rank & Suit (Inverted)
+            ctx.save();
+            ctx.translate(448, 680);
+            ctx.rotate(Math.PI);
+            ctx.font = 'bold 72px Inter, Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillText(rank, 0, 0);
+            ctx.font = '60px Arial';
+            ctx.fillText(suit, 0, -80);
+            ctx.restore();
+
+            // Center Display: Large Number/Rank & Main Suit Icon
+            ctx.font = 'bold 140px Inter, Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(rank, 256, 310);
+
+            ctx.font = '110px Arial';
+            ctx.fillText(suit, 256, 460);
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        // --- 3D ENVIRONMENT BUILDERS ---
+
+        function createTable() {
+            // Table Top (Felt Cushion)
+            const feltTexture = createFeltTexture();
+            feltTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+            const tableGeo = new THREE.CylinderGeometry(4.2, 4.0, 0.2, 64);
+            const feltMat = new THREE.MeshStandardMaterial({
+                map: feltTexture,
+                roughness: 0.8,
+                metalness: 0.1
+            });
+            const tableMesh = new THREE.Mesh(tableGeo, feltMat);
+            tableMesh.position.y = -0.1;
+            tableMesh.receiveShadow = true;
+            scene.add(tableMesh);
+
+            // Wooden Table Trim / Rail
+            const railGeo = new THREE.TorusGeometry(4.2, 0.18, 16, 64);
+            const woodMat = new THREE.MeshStandardMaterial({
+                color: 0x271406,
+                roughness: 0.3,
+                metalness: 0.2
+            });
+            const railMesh = new THREE.Mesh(railGeo, woodMat);
+            railMesh.rotation.x = Math.PI / 2;
+            railMesh.position.y = -0.02;
+            railMesh.receiveShadow = true;
+            scene.add(railMesh);
+        }
+
+        function createShoe() {
+            const shoeGroup = new THREE.Group();
+            
+            // Shoe Box
+            const boxGeo = new THREE.BoxGeometry(1.2, 1.0, 2.2);
+            const boxMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.4 });
+            const shoeBox = new THREE.Mesh(boxGeo, boxMat);
+            shoeBox.castShadow = true;
+            shoeGroup.add(shoeBox);
+
+            // Internal Cards Block Visual
+            const cardsGeo = new THREE.BoxGeometry(1.05, 0.8, 1.8);
+            const cardsMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 });
+            const cardsMesh = new THREE.Mesh(cardsGeo, cardsMat);
+            cardsMesh.position.set(0, 0.1, -0.1);
+            shoeGroup.add(cardsMesh);
+
+            shoeGroup.position.copy(SHOE_POS);
+            shoeGroup.rotation.y = Math.PI / 4;
+            scene.add(shoeGroup);
+        }
+
+        // --- 3D CARD CREATION ---
+
+        function createCardMesh(card) {
+            const group = new THREE.Group();
+
+            const frontTexture = createCardFrontTexture(card.suit, card.rank);
+            const materials = [
+                new THREE.MeshStandardMaterial({ color: 0xdddddd }), // Right edge
+                new THREE.MeshStandardMaterial({ color: 0xdddddd }), // Left edge
+                new THREE.MeshStandardMaterial({ color: 0xdddddd }), // Top edge
+                new THREE.MeshStandardMaterial({ color: 0xdddddd }), // Bottom edge
+                new THREE.MeshStandardMaterial({ map: frontTexture, roughness: 0.3 }), // Front face
+                new THREE.MeshStandardMaterial({ map: cardBackTexture, roughness: 0.3 }) // Back face
+            ];
+
+            const geo = new THREE.BoxGeometry(CARD_WIDTH, CARD_THICKNESS, CARD_HEIGHT);
+            const mesh = new THREE.Mesh(geo, materials);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+
+            group.add(mesh);
+            
+            // Start inside the Shoe box facing down
+            group.position.copy(SHOE_POS);
+            group.rotation.set(0, Math.PI / 4, Math.PI); // Face down
+
+            scene.add(group);
+            cardMeshes.push(group);
+            return group;
+        }
+
+        // --- 3D CHIP SYSTEM ---
+
+        function createChipMesh(val) {
+            const colorMap = {
+                5: 0xef4444,   // Red
+                10: 0x3b82f6,  // Blue
+                25: 0x10b981,  // Green
+                50: 0x8b5cf6,  // Purple
+                100: 0xf59e0b  // Yellow
+            };
+
+            const chipGroup = new THREE.Group();
+            const geo = new THREE.CylinderGeometry(0.3, 0.3, 0.08, 32);
+            const mat = new THREE.MeshStandardMaterial({
+                color: colorMap[val] || 0xffffff,
+                roughness: 0.3,
+                metalness: 0.3
+            });
+
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            chipGroup.add(mesh);
+
+            // White Inner Ring
+            const innerGeo = new THREE.TorusGeometry(0.2, 0.015, 8, 32);
+            const innerMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const innerRing = new THREE.Mesh(innerGeo, innerMat);
+            innerRing.rotation.x = Math.PI / 2;
+            innerRing.position.y = 0.041;
+            chipGroup.add(innerRing);
+
+            return chipGroup;
+        }
+
+        function update3DChipsStack() {
+            // Remove current chips
+            chipMeshes.forEach(c => scene.remove(c));
+            chipMeshes = [];
+
+            let remaining = currentBet;
+            const values = [100, 50, 25, 10, 5];
+            let stackY = 0.04;
+
+            values.forEach(val => {
+                const count = Math.floor(remaining / val);
+                remaining %= val;
+
+                for (let i = 0; i < count; i++) {
+                    const chip = createChipMesh(val);
+                    // Add micro-random offset for realistic stack look
+                    const rx = (Math.random() - 0.5) * 0.03;
+                    const rz = (Math.random() - 0.5) * 0.03;
+
+                    chip.position.set(0 + rx, stackY, 0.3 + rz);
+                    scene.add(chip);
+                    chipMeshes.push(chip);
+
+                    stackY += 0.085;
+                }
+            });
+        }
+
+        // --- BLACKJACK GAME LOGIC ---
+
+        function buildDeck() {
+            deck = [];
+            for (let s = 0; s < SUITS.length; s++) {
+                for (let r = 0; r < RANKS.length; r++) {
+                    let val = r + 1;
+                    if (r >= 9) val = 10; // J, Q, K
+                    deck.push({
+                        suit: SUITS[s],
+                        rank: RANKS[r],
+                        value: val
+                    });
+                }
+            }
+            // Shuffle
+            for (let i = deck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [deck[i], deck[j]] = [deck[j], deck[i]];
+            }
+        }
+
+        function calculateScore(hand) {
+            let score = 0;
+            let aces = 0;
+
+            hand.forEach(card => {
+                if (card.rank === 'A') {
+                    aces += 1;
+                    score += 11;
+                } else {
+                    score += card.value;
+                }
+            });
+
+            while (score > 21 && aces > 0) {
+                score -= 10;
+                aces -= 1;
+            }
+
+            return score;
+        }
+
+        // --- BETTING CONTROLS ---
+
+        function resetBankroll() {
+            if (gameState !== 'BETTING') return;
+            bankroll = 100;
+            currentBet = 0;
+            soundFX.playWin();
+            updateUI();
+            update3DChipsStack();
+        }
+
+        function addBet(amount) {
+            if (gameState !== 'BETTING') return;
+            if (bankroll >= amount) {
+                bankroll -= amount;
+                currentBet += amount;
+                soundFX.playChipSound();
+                updateUI();
+                update3DChipsStack();
+            }
+        }
+
+        function addMaxBet() {
+            if (gameState !== 'BETTING' || bankroll <= 0) return;
+            currentBet += bankroll;
+            bankroll = 0;
+            soundFX.playChipSound();
+            updateUI();
+            update3DChipsStack();
+        }
+
+        function clearBet() {
+            if (gameState !== 'BETTING' || currentBet === 0) return;
+            bankroll += currentBet;
+            currentBet = 0;
+            soundFX.playClick();
+            updateUI();
+            update3DChipsStack();
+        }
+
+        // --- GAME ACTIONS & FLOW ---
+
+        async function startGame() {
+            if (currentBet === 0 || gameState !== 'BETTING') return;
+
+            gameState = 'PLAYER_TURN';
+            soundFX.playClick();
+            clearBoard3D();
+            buildDeck();
+
+            playerHand = [];
+            dealerHand = [];
+
+            updateUI();
+            showMessage("");
+
+            // Deal sequence: Player, Dealer, Player, Dealer (Hidden)
+            await dealCardTo('PLAYER', false);
+            await dealCardTo('DEALER', false);
+            await dealCardTo('PLAYER', false);
+            await dealCardTo('DEALER', true); // Face down
+
+            // Check for initial Natural Blackjacks
+            const pScore = calculateScore(playerHand);
+            const dScore = calculateScore(dealerHand);
+
+            if (pScore === 21 || dScore === 21) {
+                // Reveal dealer hole card immediately if Blackjack is present
+                await revealDealerCard();
+                resolveGame();
+            }
+        }
+
+        async function dealCardTo(target, isFaceDown = false) {
+            soundFX.playCardSlide();
+            const card = deck.pop();
+            const cardMesh = createCardMesh(card);
+
+            if (target === 'PLAYER') {
+                playerHand.push(card);
+                cardMesh.userData = { target: 'PLAYER', isFaceDown };
+                const index = playerHand.length - 1;
+                const targetPos = new THREE.Vector3(
+                    PLAYER_POS.x + (index * 0.45) - 0.4,
+                    PLAYER_POS.y + (index * 0.02),
+                    PLAYER_POS.z
+                );
+                
+                await animateCardDeal(cardMesh, targetPos, !isFaceDown);
+                updateUI();
+
+            } else {
+                dealerHand.push(card);
+                cardMesh.userData = { target: 'DEALER', isFaceDown, cardObj: card };
+                const index = dealerHand.length - 1;
+                const targetPos = new THREE.Vector3(
+                    DEALER_POS.x + (index * 0.45) - 0.4,
+                    DEALER_POS.y + (index * 0.02),
+                    DEALER_POS.z
+                );
+
+                await animateCardDeal(cardMesh, targetPos, !isFaceDown);
+                updateUI();
+            }
+        }
+
+        function animateCardDeal(mesh, targetPos, faceUp) {
+            return new Promise(resolve => {
+                const duration = 0.5;
+                
+                // Position Animation
+                gsap.to(mesh.position, {
+                    x: targetPos.x,
+                    y: targetPos.y,
+                    z: targetPos.z,
+                    duration: duration,
+                    ease: "power2.out"
+                });
+
+                // Rotation Animation
+                const targetRotY = faceUp ? 0 : 0;
+                const targetRotZ = faceUp ? Math.PI : 0; // Rotates along length to show front face
+
+                gsap.to(mesh.rotation, {
+                    x: 0,
+                    y: targetRotY,
+                    z: targetRotZ,
+                    duration: duration,
+                    ease: "power2.out",
+                    onComplete: resolve
+                });
+            });
+        }
+
+        async function revealDealerCard() {
+            // Find hidden card mesh
+            const dealerMeshes = cardMeshes.filter(m => m.userData.target === 'DEALER');
+            if (dealerMeshes.length >= 2) {
+                const hiddenMesh = dealerMeshes[1]; // Second dealer card
+                if (hiddenMesh.userData.isFaceDown) {
+                    soundFX.playCardSlide();
+                    hiddenMesh.userData.isFaceDown = false;
+                    await gsap.to(hiddenMesh.rotation, {
+                        z: Math.PI,
+                        duration: 0.4,
+                        ease: "power1.inOut"
+                    });
+                    updateUI();
+                }
+            }
+        }
+
+        async function playerHit() {
+            if (gameState !== 'PLAYER_TURN') return;
+
+            document.getElementById('btn-double').disabled = true; // Cannot double after hit
+            await dealCardTo('PLAYER', false);
+
+            const pScore = calculateScore(playerHand);
+            if (pScore >= 21) {
+                playerStand();
+            }
+        }
+
+        async function playerStand() {
+            if (gameState !== 'PLAYER_TURN') return;
+
+            gameState = 'DEALER_TURN';
+            updateUI();
+
+            // Reveal hidden dealer card
+            await revealDealerCard();
+
+            // Dealer AI: Draws until 17 or higher
+            while (calculateScore(dealerHand) < 17) {
+                await new Promise(r => setTimeout(r, 600));
+                await dealCardTo('DEALER', false);
+            }
+
+            resolveGame();
+        }
+
+        async function playerDouble() {
+            if (gameState !== 'PLAYER_TURN' || bankroll < currentBet) return;
+
+            // Deduct additional bet equal to current bet
+            bankroll -= currentBet;
+            currentBet *= 2;
+            soundFX.playChipSound();
+            updateUI();
+            update3DChipsStack();
+
+            // Deal exactly 1 card to player
+            await dealCardTo('PLAYER', false);
+
+            // Automatically stand if not busted
+            playerStand();
+        }
+
+        function resolveGame() {
+            gameState = 'RESOLVED';
+            const pScore = calculateScore(playerHand);
+            const dScore = calculateScore(dealerHand);
+
+            let message = "";
+            let subtitle = "";
+            let type = "win"; // win, lose, push, blackjack
+            let winAmount = 0;
+
+            if (pScore > 21) {
+                message = "SBALLATO!";
+                subtitle = "Hai superato 21. Il banco vince.";
+                type = "lose";
+                soundFX.playLose();
+            } else if (dScore > 21) {
+                message = "IL BANCO SBALLA!";
+                winAmount = currentBet * 2;
+                subtitle = `Hai vinto €${winAmount.toLocaleString('it-IT')}`;
+                type = "win";
+                soundFX.playWin();
+            } else if (pScore === dScore) {
+                message = "PAREGGIO!";
+                winAmount = currentBet;
+                subtitle = "Puntata restituita.";
+                type = "push";
+            } else if (pScore === 21 && playerHand.length === 2) {
+                message = "BLACKJACK!";
+                winAmount = currentBet * 2.5; // 3 to 2 payout
+                subtitle = `Vittoria Suprema! €${winAmount.toLocaleString('it-IT')}`;
+                type = "blackjack";
+                soundFX.playWin();
+            } else if (pScore > dScore) {
+                message = "HAI VINTO!";
+                winAmount = currentBet * 2;
+                subtitle = `Hai battuto il Banco. €${winAmount.toLocaleString('it-IT')}`;
+                type = "win";
+                soundFX.playWin();
+            } else {
+                message = "IL BANCO VINCE";
+                subtitle = "Punti banco superiori al tuo.";
+                type = "lose";
+                soundFX.playLose();
+            }
+
+            bankroll += winAmount;
+            currentBet = 0;
+
+            showResultModal(message, subtitle, type);
+
+            setTimeout(() => {
+                hideResultModal();
+                gameState = 'BETTING';
+                updateUI();
+                update3DChipsStack();
+            }, 3000);
+        }
+
+        function showResultModal(title, subtitle, type) {
+            const modal = document.getElementById('result-modal');
+            const box = document.getElementById('result-modal-box');
+            const titleEl = document.getElementById('result-title');
+            const subEl = document.getElementById('result-subtitle');
+            const iconBg = document.getElementById('result-icon-bg');
+            const icon = document.getElementById('result-icon');
+
+            titleEl.innerText = title;
+            subEl.innerText = subtitle;
+
+            // Apply contextual styling
+            if (type === 'win' || type === 'blackjack') {
+                box.className = "glass-panel p-6 md:p-8 rounded-3xl border-2 border-emerald-500/50 shadow-[0_0_50px_rgba(16,185,129,0.3)] backdrop-blur-2xl";
+                titleEl.className = "font-cinzel text-2xl md:text-4xl font-black tracking-wider uppercase mb-1 text-emerald-400";
+                iconBg.className = "w-16 h-16 mx-auto mb-3 rounded-full flex items-center justify-center text-3xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/40";
+                icon.className = type === 'blackjack' ? "fa-solid fa-crown" : "fa-solid fa-trophy";
+            } else if (type === 'lose') {
+                box.className = "glass-panel p-6 md:p-8 rounded-3xl border-2 border-rose-500/50 shadow-[0_0_50px_rgba(244,63,94,0.3)] backdrop-blur-2xl";
+                titleEl.className = "font-cinzel text-2xl md:text-4xl font-black tracking-wider uppercase mb-1 text-rose-400";
+                iconBg.className = "w-16 h-16 mx-auto mb-3 rounded-full flex items-center justify-center text-3xl bg-rose-500/20 text-rose-400 border border-rose-500/40";
+                icon.className = "fa-solid fa-skull";
+            } else { // Push
+                box.className = "glass-panel p-6 md:p-8 rounded-3xl border-2 border-amber-500/50 shadow-[0_0_50px_rgba(245,158,11,0.3)] backdrop-blur-2xl";
+                titleEl.className = "font-cinzel text-2xl md:text-4xl font-black tracking-wider uppercase mb-1 text-amber-400";
+                iconBg.className = "w-16 h-16 mx-auto mb-3 rounded-full flex items-center justify-center text-3xl bg-amber-500/20 text-amber-400 border border-amber-500/40";
+                icon.className = "fa-solid fa-handshake";
+            }
+
+            modal.classList.remove('hidden');
+            box.classList.add('result-banner-enter');
+        }
+
+        function hideResultModal() {
+            const modal = document.getElementById('result-modal');
+            const box = document.getElementById('result-modal-box');
+            modal.classList.add('hidden');
+            box.classList.remove('result-banner-enter');
+        }
+
+        function clearBoard3D() {
+            cardMeshes.forEach(mesh => scene.remove(mesh));
+            cardMeshes = [];
+        }
+
+        // --- UI & FEEDBACK UTILITIES ---
+
+        function showMessage(msg) {
+            const statusEl = document.getElementById('status-message');
+            if (!statusEl) return;
+            if (!msg) {
+                statusEl.classList.add('opacity-0', 'scale-90');
+                return;
+            }
+            statusEl.innerText = msg;
+            statusEl.classList.remove('opacity-0', 'scale-90');
+            statusEl.classList.add('opacity-100', 'scale-100');
+        }
+
+        function updateUI() {
+            // Update Balances
+            document.getElementById('bankroll-display').innerText = `€${bankroll.toLocaleString('it-IT')}`;
+            document.getElementById('current-bet-display').innerText = `€${currentBet.toLocaleString('it-IT')}`;
+
+            // Update Controls visibility
+            const bettingControls = document.getElementById('betting-controls');
+            const gameControls = document.getElementById('game-controls');
+            const dealBtn = document.getElementById('btn-deal');
+            const doubleBtn = document.getElementById('btn-double');
+            const playerScoreContainer = document.getElementById('player-score-container');
+
+            if (gameState === 'BETTING') {
+                bettingControls.classList.remove('hidden');
+                gameControls.classList.add('hidden');
+                playerScoreContainer.classList.add('opacity-0');
+                dealBtn.disabled = currentBet === 0;
+            } else {
+                bettingControls.classList.add('hidden');
+                gameControls.classList.remove('hidden');
+                playerScoreContainer.classList.remove('opacity-0');
+                
+                // Allow Double Down only on initial two cards & sufficient bankroll
+                doubleBtn.disabled = playerHand.length !== 2 || bankroll < currentBet;
+            }
+
+            // Update Scores
+            if (playerHand.length > 0) {
+                const pScore = calculateScore(playerHand);
+                document.getElementById('player-score').innerText = pScore;
+            } else {
+                document.getElementById('player-score').innerText = '0';
+            }
+
+            if (dealerHand.length > 0) {
+                // Check if second card is face down
+                const dealerMeshes = cardMeshes.filter(m => m.userData.target === 'DEALER');
+                const isSecondFaceDown = dealerMeshes.length >= 2 && dealerMeshes[1].userData.isFaceDown;
+
+                if (isSecondFaceDown && gameState === 'PLAYER_TURN') {
+                    // Show only first card score during player turn
+                    const firstCardScore = dealerHand[0].rank === 'A' ? 11 : dealerHand[0].value;
+                    document.getElementById('dealer-score').innerText = firstCardScore;
+                } else {
+                    document.getElementById('dealer-score').innerText = calculateScore(dealerHand);
+                }
+            } else {
+                document.getElementById('dealer-score').innerText = '0';
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
